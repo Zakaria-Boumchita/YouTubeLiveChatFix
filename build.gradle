@@ -24,7 +24,7 @@ ext {
 uploadArchives {
     repositories {
         mavenDeployer {
-            repository(url: uri(mavenRepository))
+            repository(url: uri("${System.getProperty('user.home')}/.m2/repository"))
         }
     }
 }
