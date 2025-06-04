@@ -1,9 +1,8 @@
 package com.github.kusaanko.youtubelivechat;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
