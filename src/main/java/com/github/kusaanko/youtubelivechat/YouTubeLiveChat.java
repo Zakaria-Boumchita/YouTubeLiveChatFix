@@ -1014,7 +1014,7 @@ public class YouTubeLiveChat {
      *
      * @throws IOException Couldn't get broadcast info
      */
-    public LiveBroadcastDetails getBroadcastInfo() throws IOException {
+    public boolean isOnline() throws IOException {
         try {
             String url = liveStreamInfoApi + this.videoId + "&hl=en&pbj=1";
             HashMap<String, String> header = new HashMap<>();
@@ -1022,8 +1022,9 @@ public class YouTubeLiveChat {
             header.put("x-youtube-client-version", getClientVersion());
             String response = Util.getPageContent(url, header);
             JsonElement jsonElement = JsonParser.parseString(Objects.requireNonNull(response)).getAsJsonObject();
-            JsonElement liveBroadcastDetails = Util.searchJsonElementByKey("liveBroadcastDetails", jsonElement);
-            return gson.fromJson(liveBroadcastDetails, LiveBroadcastDetails.class);
+            JsonElement serviceTrackingParams = Util.searchJsonElementByKey("serviceTrackingParams", jsonElement);
+            ServicesTrackingParams servicesTrackingParams = gson.fromJson(serviceTrackingParams, ServicesTrackingParams.class);
+            return servicesTrackingParams.isOnline();
         } catch (IOException | NullPointerException exception) {
             throw new IOException("Couldn't get broadcast info!", exception);
         }
