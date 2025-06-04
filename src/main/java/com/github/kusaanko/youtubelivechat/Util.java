@@ -2,23 +2,35 @@ package com.github.kusaanko.youtubelivechat;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
+import okhttp3.*;
 
-import java.io.*;
-import java.math.BigInteger;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+
+/*
+ * Modified by Logonik on 2025-06-04
+ * Original code from kusaanko, licensed under the Apache License 2.0
+ */
 
 @SuppressWarnings("unchecked")
 public class Util {
-    private static Gson gson;
+    private static final Gson gson = new Gson();
 
-    static {
-        gson = new Gson();
-    }
+    private static final OkHttpClient client = new OkHttpClient.Builder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .readTimeout(Duration.ofSeconds(20))
+            .writeTimeout(Duration.ofSeconds(20))
+            .build();
+
+    // ----------------------
+    // JSON-утилиты
+    // ----------------------
 
     public static String toJSON(Map<String, Object> json) {
+        // При желании можно заменить на: return gson.toJson(json);
         StringBuilder js = new StringBuilder();
         js.append("{");
         for (String key : json.keySet()) {
@@ -36,7 +48,9 @@ public class Util {
             } else if (d instanceof Map) {
                 js.append(toJSON((Map<String, Object>) d));
             } else {
-                js.append("\"").append(d.toString().replace("\"", "\\\"").replace("\\", "\\\\")).append("\"");
+                js.append("\"")
+                        .append(d.toString().replace("\"", "\\\"").replace("\\", "\\\\"))
+                        .append("\"");
             }
             js.append(", ");
         }
@@ -47,8 +61,7 @@ public class Util {
         if (!json.startsWith("{")) {
             throw new IllegalArgumentException("This is not json(map)!");
         }
-        Map<String, Object> result = gson.fromJson(json, Map.class);
-        return result;
+        return gson.fromJson(json, Map.class);
     }
 
     public static Map<String, Object> getJSONMap(Map<String, Object> json, String... keys) {
@@ -104,24 +117,18 @@ public class Util {
 
     public static String getJSONValueString(Map<String, Object> json, String key) {
         Object value = getJSONValue(json, key);
-        if (value != null) {
-            return value.toString();
-        }
-        return null;
+        return value != null ? value.toString() : null;
     }
 
     public static boolean getJSONValueBoolean(Map<String, Object> json, String key) {
         Object value = getJSONValue(json, key);
-        if (value != null) {
-            return (boolean) value;
-        }
-        return false;
+        return value != null && (boolean) value;
     }
 
     public static long getJSONValueLong(Map<String, Object> json, String key) {
         Object value = getJSONValue(json, key);
-        if (value != null) {
-            return ((Double) value).longValue();
+        if (value != null && value instanceof Number) {
+            return ((Number) value).longValue();
         }
         return 0;
     }
@@ -130,160 +137,140 @@ public class Util {
         return (int) getJSONValueLong(json, key);
     }
 
-    public static String getPageContent(String url, Map<String, String> header) throws IOException {
-        URL u = new URL(url);
-        HttpURLConnection connection = (HttpURLConnection) u.openConnection();
-        putRequestHeader(header);
-        for (String key : header.keySet()) {
-            connection.setRequestProperty(key, header.get(key));
-        }
-        connection.connect();
-        try {
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) { // success
-                InputStream inputStream = connection.getInputStream();
-                byte[] buff = new byte[8192];
-                int len;
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                while ((len = inputStream.read(buff)) != -1) {
-                    baos.write(buff, 0, len);
-                }
-                inputStream.close();
-                String content = baos.toString(StandardCharsets.UTF_8.toString());
-                baos.close();
-                return content;
-            }
-        } catch (IOException exception) {
-            throw new IOException("Error during http request ", exception);
-        }
-        return null;
-    }
+    // ----------------------
+    // HTTP GET через OkHttp
+    // ----------------------
 
-    public static String getPageContentWithJson(String url, String data, Map<String, String> header) throws IOException {
-        URL u = new URL(url);
-        HttpURLConnection connection = (HttpURLConnection) u.openConnection();
-        putRequestHeader(header);
-        header.put("Content-Type", "application/json");
-        header.put("Content-Length", String.valueOf(data.length()));
-        for (String key : header.keySet()) {
-            connection.setRequestProperty(key, header.get(key));
-        }
-        connection.setRequestMethod("POST");
-        connection.setDoOutput(true);
-        OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream(), StandardCharsets.UTF_8);
-        writer.write(data);
-        writer.close();
-        connection.connect();
-        try {
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) { // success
-                InputStream inputStream = connection.getInputStream();
-                byte[] buff = new byte[8192];
-                int len;
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                while ((len = inputStream.read(buff)) != -1) {
-                    baos.write(buff, 0, len);
-                }
-                inputStream.close();
-                String content = baos.toString(StandardCharsets.UTF_8.toString());
-                baos.close();
-                return content;
-            }
-        } catch (IOException exception) {
-            throw new IOException("Error during http request ", exception);
-        }
-        return null;
-    }
+    public static String getPageContent(String url, Map<String, String> headers) throws IOException {
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(url)
+                .get();
 
-    public static void sendHttpRequestWithJson(String url, String data, Map<String, String> header) throws IOException {
-        URL u = new URL(url);
-        HttpURLConnection connection = (HttpURLConnection) u.openConnection();
-        putRequestHeader(header);
-        header.put("Content-Type", "application/json");
-        header.put("Content-Length", String.valueOf(data.length()));
-        for (String key : header.keySet()) {
-            connection.setRequestProperty(key, header.get(key));
+        putRequestHeader(headers);
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            requestBuilder.addHeader(entry.getKey(), entry.getValue());
         }
-        connection.setRequestMethod("POST");
-        connection.setDoOutput(true);
-        OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream(), StandardCharsets.UTF_8);
-        writer.write(data);
-        writer.close();
-        connection.connect();
-        try {
-            connection.getInputStream();
-            connection.disconnect();
-        } catch (IOException e) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getErrorStream()));
-            String s;
-            StringBuilder str = new StringBuilder();
-            while ((s = reader.readLine()) != null) {
-                str.append(s);
+
+        Request request = requestBuilder.build();
+        try (Response response = client.newCall(request).execute()) {
+            if (response.isSuccessful() && response.body() != null) {
+                return response.body().string();
+            } else {
+                throw new IOException("HTTP error code: " + response.code());
             }
-            connection.disconnect();
-            throw new IOException(str.toString(), e);
         }
     }
 
-    private static void putRequestHeader(Map<String, String> header) {
-        header.put("Accept-Charset", "utf-8");
-        header.put("User-Agent", YouTubeLiveChat.userAgent);
+    // ----------------------
+    // HTTP POST с JSON через OkHttp (возвращает тело ответа)
+    // ----------------------
+
+    public static String getPageContentWithJson(String url, String jsonData, Map<String, String> headers) throws IOException {
+        RequestBody requestBody = RequestBody.create(
+                jsonData,
+                MediaType.parse("application/json; charset=utf-8")
+        );
+
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(url)
+                .post(requestBody);
+
+        putRequestHeader(headers);
+        headers.put("Content-Type", "application/json; charset=utf-8");
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            requestBuilder.addHeader(entry.getKey(), entry.getValue());
+        }
+
+        Request request = requestBuilder.build();
+        try (Response response = client.newCall(request).execute()) {
+            if (response.isSuccessful() && response.body() != null) {
+                return response.body().string();
+            } else {
+                throw new IOException("HTTP error code: " + response.code());
+            }
+        }
     }
+
+    // ----------------------
+    // HTTP POST с JSON через OkHttp (без возврата тела)
+    // ----------------------
+
+    public static void sendHttpRequestWithJson(String url, String jsonData, Map<String, String> headers) throws IOException {
+        RequestBody requestBody = RequestBody.create(
+                jsonData,
+                MediaType.parse("application/json; charset=utf-8")
+        );
+
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(url)
+                .post(requestBody);
+
+        putRequestHeader(headers);
+        headers.put("Content-Type", "application/json; charset=utf-8");
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            requestBuilder.addHeader(entry.getKey(), entry.getValue());
+        }
+
+        Request request = requestBuilder.build();
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "empty";
+                throw new IOException("Request failed: HTTP " + response.code() + ", body: " + errorBody);
+            }
+        }
+    }
+
+    // ----------------------
+    // Вспомогательный метод для стандартных заголовков
+    // ----------------------
+
+    private static void putRequestHeader(Map<String, String> headers) {
+        headers.put("Accept-Charset", "utf-8");
+        headers.put("User-Agent", YouTubeLiveChat.userAgent);
+    }
+
+    // ----------------------
+    // Генерация clientMessageId
+    // ----------------------
 
     public static String generateClientMessageId() {
         String base = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-";
         StringBuilder sb = new StringBuilder();
         Random random = new Random();
-
         for (int i = 0; i < 26; i++) {
             sb.append(base.charAt(random.nextInt(base.length())));
         }
-
         return sb.toString();
     }
 
+    // ----------------------
+    // Рекурсивный поиск JsonElement по ключу
+    // ----------------------
+
     public static JsonElement searchJsonElementByKey(String key, JsonElement jsonElement) {
-
-        JsonElement value = null;
-
-        // If input is an array, iterate through each element
         if (jsonElement.isJsonArray()) {
-            for (JsonElement jsonElement1 : jsonElement.getAsJsonArray()) {
-                value = searchJsonElementByKey(key, jsonElement1);
-                if (value != null) {
-                    return value;
+            for (JsonElement element : jsonElement.getAsJsonArray()) {
+                JsonElement found = searchJsonElementByKey(key, element);
+                if (found != null) {
+                    return found;
+                }
+            }
+        } else if (jsonElement.isJsonObject()) {
+            for (Map.Entry<String, JsonElement> entry : jsonElement.getAsJsonObject().entrySet()) {
+                if (entry.getKey().equals(key)) {
+                    return entry.getValue();
+                }
+                JsonElement found = searchJsonElementByKey(key, entry.getValue());
+                if (found != null) {
+                    return found;
                 }
             }
         } else {
-            // If input is object, iterate through the keys
-            if (jsonElement.isJsonObject()) {
-                Set<Map.Entry<String, JsonElement>> entrySet = jsonElement
-                        .getAsJsonObject().entrySet();
-                for (Map.Entry<String, JsonElement> entry : entrySet) {
-
-                    // If key corresponds to the
-                    String key1 = entry.getKey();
-                    if (key1.equals(key)) {
-                        value = entry.getValue();
-                        return value;
-                    }
-
-                    // Use the entry as input, recursively
-                    value = searchJsonElementByKey(key, entry.getValue());
-                    if (value != null) {
-                        return value;
-                    }
-                }
-            }
-
-            // If input is element, check whether it corresponds to the key
-            else {
-                if (jsonElement.toString().equals(key)) {
-                    value = jsonElement;
-                    return value;
-                }
+            if (jsonElement.toString().equals(key)) {
+                return jsonElement;
             }
         }
-        return value;
+        return null;
     }
 }
+
