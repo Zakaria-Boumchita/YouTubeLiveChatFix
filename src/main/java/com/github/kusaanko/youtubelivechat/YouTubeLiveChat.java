@@ -1,10 +1,9 @@
 package com.github.kusaanko.youtubelivechat;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 
 import java.io.IOException;
+import java.io.StringReader;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -1021,12 +1020,9 @@ public class YouTubeLiveChat {
             header.put("x-youtube-client-name", "1");
             header.put("x-youtube-client-version", getClientVersion());
             String response = Util.getPageContent(url, header);
-            JsonElement jsonElement = JsonParser.parseString(Objects.requireNonNull(response)).getAsJsonObject();
-            JsonElement serviceTrackingParams = Util.searchJsonElementByKey("serviceTrackingParams", jsonElement);
-            ServicesTrackingParams servicesTrackingParams = gson.fromJson(serviceTrackingParams, ServicesTrackingParams.class);
-            return servicesTrackingParams.isOnline();
+            return Boolean.parseBoolean(JsonPathFinder.findIsViewedLive(response));
         } catch (IOException | NullPointerException exception) {
-            throw new IOException("Couldn't get broadcast info!", exception);
+            throw new IOException("Couldn't check is Online!", exception);
         }
     }
 }
