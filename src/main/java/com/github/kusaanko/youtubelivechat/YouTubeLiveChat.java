@@ -3,6 +3,7 @@ package com.github.kusaanko.youtubelivechat;
 import com.google.gson.Gson;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -1020,6 +1021,8 @@ public class YouTubeLiveChat {
             header.put("x-youtube-client-version", getClientVersion());
             String response = Util.getPageContent(url, header);
             return Boolean.parseBoolean(JsonPathFinder.findIsViewedLive(response));
+        } catch (InterruptedIOException e) {
+            throw e;
         } catch (IOException | NullPointerException exception) {
             throw new IOException("Couldn't check is Online!", exception);
         }
