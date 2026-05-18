@@ -1,9 +1,6 @@
 package com.github.kusaanko.youtubelivechat;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
-
+import java.io.InterruptedIOException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.MessageDigest;
@@ -58,7 +55,6 @@ public class YouTubeLiveChat {
     private Map<String, String> cookie;
 
     private MessageDigest sha1;
-    private final Gson gson;
 
     /**
      * Initialize YouTubeLiveChat
@@ -78,7 +74,6 @@ public class YouTubeLiveChat {
         this.locale = Locale.US;
         this.commentCounter = 0;
         this.clientMessageId = Util.generateClientMessageId();
-        this.gson = new Gson();
         try {
             this.getInitialData(id, type);
         } catch (IOException exception) {
@@ -1116,24 +1111,23 @@ public class YouTubeLiveChat {
     }
 
     /**
-     * Get broadcast info
+     * Check if the stream is currently live
      *
-     * @return LiveBroadcastDetails obj
-     *
-     * @throws IOException Couldn't get broadcast info
+     * @return true if the stream is live
+     * @throws IOException Couldn't check online status
      */
-    public LiveBroadcastDetails getBroadcastInfo() throws IOException {
+    public boolean isOnline() throws IOException {
         try {
             String url = liveStreamInfoApi + this.videoId + "&hl=en&pbj=1";
             HashMap<String, String> header = new HashMap<>();
             header.put("x-youtube-client-name", "1");
             header.put("x-youtube-client-version", getClientVersion());
             String response = Util.getPageContent(url, header);
-            JsonElement jsonElement = JsonParser.parseString(Objects.requireNonNull(response)).getAsJsonObject();
-            JsonElement liveBroadcastDetails = Util.searchJsonElementByKey("liveBroadcastDetails", jsonElement);
-            return gson.fromJson(liveBroadcastDetails, LiveBroadcastDetails.class);
+            return Boolean.parseBoolean(JsonPathFinder.findIsViewedLive(response));
+        } catch (InterruptedIOException e) {
+            throw e;
         } catch (IOException | NullPointerException exception) {
-            throw new IOException("Couldn't get broadcast info!", exception);
+            throw new IOException("Couldn't check is Online!", exception);
         }
     }
 }

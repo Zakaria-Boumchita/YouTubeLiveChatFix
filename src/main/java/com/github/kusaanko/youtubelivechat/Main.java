@@ -24,7 +24,7 @@ public class Main {
             if (liveStatusCheckCycle >= 10) {
                 // Calling this method frequently, cpu usage and network usage become higher
                 // because this method requests a http request.
-                if (!chat.getBroadcastInfo().isLiveNow) {
+                if (!chat.isOnline()) {
                     break;
                 }
                 liveStatusCheckCycle = 0;
